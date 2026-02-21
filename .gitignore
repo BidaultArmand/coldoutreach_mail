@@ -1,0 +1,7 @@
+.env
+backlog.csv
+*.sqlite
+__pycache__/
+*.pyc
+.venv/
+venv/
