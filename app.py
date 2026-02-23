@@ -151,7 +151,7 @@ def send_email(
     msg["From"] = sender_email
     msg["To"] = recipient_email
     msg["Subject"] = subject
-    msg.attach(MIMEText(body, "plain", "utf-8"))
+    msg.attach(MIMEText(body, "html", "utf-8"))
 
     with smtplib.SMTP(smtp_server, smtp_port, timeout=15) as server:
         server.ehlo()
@@ -162,7 +162,24 @@ def send_email(
 
 
 def format_body(template: str, nom: str) -> str:
+    """For subject line (plain text only)."""
     return template.replace("{nom}", nom).replace("{nom_hotel}", nom)
+
+
+def format_html_body(template: str, nom: str, site: str = "") -> str:
+    """Format the email body as HTML.
+
+    Supported variables:
+    - {nom} / {nom_hotel} : nom du prospect
+    - {nom_lien}           : nom cliquable → lien vers le site du prospect
+    - HTML brut            : <a href="...">texte</a> etc.
+    """
+    result = template.replace("{nom}", nom).replace("{nom_hotel}", nom)
+    nom_lien_html = f'<a href="{site}">{nom}</a>' if site else nom
+    result = result.replace("{nom_lien}", nom_lien_html)
+    # Convert plain newlines to HTML line breaks
+    result = result.replace("\n", "<br>\n")
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -475,7 +492,11 @@ def section_template():
             value=st.session_state.mail_subject,
         )
     with col2:
-        st.caption("Variables disponibles : `{nom}` ou `{nom_hotel}`")
+        st.caption(
+            "Variables : `{nom}` / `{nom_hotel}` — nom du prospect · "
+            "`{nom_lien}` — nom cliquable vers son site · "
+            "HTML accepté, ex : `<a href=\"https://...\">Armand Bidault</a>`"
+        )
 
     st.session_state.mail_body = st.text_area(
         "Corps du message",
@@ -494,8 +515,9 @@ def _send_one(row: pd.Series, df: pd.DataFrame) -> pd.DataFrame:
 
     nom = row["nom"]
     email = row["email"]
+    site = row.get("site", "")
     subject = format_body(cfg.mail_subject, nom)
-    body = format_body(cfg.mail_body, nom)
+    body = format_html_body(cfg.mail_body, nom, site=site)
 
     try:
         send_email(
